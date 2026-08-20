@@ -79,7 +79,9 @@ function musicRequest() {
 
 function startMusicBridge() {
   if (musicChild) return;
-  const scriptPath = path.join(__dirname, 'music.ps1');
+  const scriptPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'music.ps1')
+    : path.join(__dirname, 'music.ps1');
   musicChild = spawn(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
@@ -133,7 +135,9 @@ function keyRequest() {
 
 function startKeyBridge() {
   if (keyChild) return;
-  const scriptPath = path.join(__dirname, 'keyboard.ps1');
+  const scriptPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'keyboard.ps1')
+    : path.join(__dirname, 'keyboard.ps1');
   keyChild = spawn(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
