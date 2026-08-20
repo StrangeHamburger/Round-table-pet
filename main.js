@@ -20,6 +20,9 @@ let win = null;
 let musicChild = null;
 let musicBuf = '';
 let musicPending = [];
+let keyChild = null;
+let keyBuf = '';
+let keyPending = [];
 
 function createWindow() {
   const wa = screen.getPrimaryDisplay().workArea;
@@ -119,6 +122,60 @@ function stopMusicBridge() {
   }
 }
 
+// ---------- 键盘桥接（检测"是否在打字"，PowerShell GetAsyncKeyState） ----------
+function keyRequest() {
+  if (!keyChild) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    keyPending.push(resolve);
+    keyChild.stdin.write('get\n');
+  });
+}
+
+function startKeyBridge() {
+  if (keyChild) return;
+  const scriptPath = path.join(__dirname, 'keyboard.ps1');
+  keyChild = spawn(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
+    { stdio: ['pipe', 'pipe', 'pipe'] }
+  );
+
+  keyChild.stdout.setEncoding('utf8');
+  keyChild.stdout.on('data', (d) => {
+    keyBuf += d;
+    let i;
+    while ((i = keyBuf.indexOf('\n')) >= 0) {
+      const line = keyBuf.slice(0, i).trim();
+      keyBuf = keyBuf.slice(i + 1);
+      if (line && keyPending.length) {
+        const resolve = keyPending.shift();
+        let obj = null;
+        try { obj = JSON.parse(line); } catch (e) { obj = null; }
+        resolve(obj);
+      }
+    }
+  });
+  keyChild.stderr.on('data', (d) => console.error('[keyboard]', String(d).trim()));
+  keyChild.on('exit', () => { keyChild = null; });
+
+  // 每 100ms 轮询一次，把打字状态推给渲染进程
+  setInterval(() => {
+    keyRequest().then((state) => {
+      if (state && win && !win.isDestroyed()) {
+        win.webContents.send('keyboard', state);
+      }
+    });
+  }, 100);
+}
+
+function stopKeyBridge() {
+  if (keyChild) {
+    try { keyChild.stdin.write('quit\n'); } catch (e) {}
+    try { keyChild.kill(); } catch (e) {}
+    keyChild = null;
+  }
+}
+
 ipcMain.handle('get-info', () => {
   const wa = screen.getPrimaryDisplay().workArea;
   return { x: wa.x, y: wa.y, width: wa.width, height: wa.height };
@@ -134,6 +191,7 @@ app.whenReady().then(() => {
   if (!gotLock) return; // 未获得锁的实例在 app.quit() 后不再初始化
   createWindow();
   startMusicBridge();
+  startKeyBridge();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -141,5 +199,6 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   stopMusicBridge();
+  stopKeyBridge();
   app.quit();
 });

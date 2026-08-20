@@ -131,6 +131,7 @@ const pet = {
   shake: 0,          // 抖动强度
   hopIdx: -1,        // 抽风蹦跳计数
   turnAt: 0,         // 满屏疯跑时的下次转向时刻
+  edgeDir: 0,        // 边缘偷看的方向（-1 左 / +1 右）
 };
 let now = 0, lastNow = 0;
 resize();
@@ -164,6 +165,13 @@ desktopAPI.getInfo().then(info => { ox = info.x; oy = info.y; });
 desktopAPI.onMusic(s => {
   if (!s) return;
   music.playing = !!s.playing;
+});
+
+// 打字检测：每按一个键攒一个小跳（身体原地轻跳，不乱跑）
+let typeHops = 0;
+desktopAPI.onKey(s => {
+  if (!s) return;
+  typeHops += Math.min(s.newly || 0, 6);
 });
 
 function mouseOver(lx, ly){
@@ -470,9 +478,15 @@ const BEHAVIORS = [
   ['追尾巴', 2000, 2.0],
   // 创意特殊行为（低权重）
   ['满屏疯跑', 6500, 0.9],
-  ['爬到上面', 5200, 0.9],
-  ['咬鼠标', 4200, 0.9],
+  ['钻地探头', 6400, 1.0],
+  ['钻进鼠标', 4200, 0.9],
   ['穿屏瞬移', 5200, 0.8],
+  // 新增创意待机
+  ['高空坠落', 6200, 1.0],
+  ['边缘偷看', 5600, 1.0],
+  ['斗鸡眼挑衅', 2400, 1.4],
+  ['假摔碰瓷', 1500, 1.2],
+  ['眼珠乱转', 2000, 1.2],
 ];
 let BEHAVIOR_TOTAL = 0;
 BEHAVIORS.forEach(b => BEHAVIOR_TOTAL += b[2]);
@@ -501,15 +515,33 @@ function updateBehavior(){
     pet.vy = -RAND(3, 7);
     pet.turnAt = now + RAND(800, 1600);
   }
-  else if (name === '爬到上面'){
-    pet.vy = -9;
-    pet.vx = (Math.random() < 0.5 ? -1 : 1) * 2;
+  else if (name === '钻地探头'){
+    pet.vx = 0; pet.vy = 0;
   }
-  else if (name === '咬鼠标'){
+  else if (name === '钻进鼠标'){
     pet.vx = 0; pet.vy = 0;
   }
   else if (name === '穿屏瞬移'){
     pet.vx = 0; pet.vy = 3;
+  }
+  else if (name === '高空坠落'){
+    pet.y = -R * 2;
+    pet.x = RAND(R, W - R);
+    pet.vx = 0; pet.vy = 0;
+  }
+  else if (name === '边缘偷看'){
+    pet.edgeDir = Math.random() < 0.5 ? -1 : 1;
+    pet.vx = 0; pet.vy = 0;
+  }
+  else if (name === '斗鸡眼挑衅'){
+    pet.vx = 0; pet.vy = 0;
+  }
+  else if (name === '假摔碰瓷'){
+    pet.vx = (Math.random() < 0.5 ? -1 : 1) * RAND(4, 7);
+    pet.vy = -3;
+  }
+  else if (name === '眼珠乱转'){
+    pet.vx = 0; pet.vy = 0;
   }
 }
 
@@ -558,9 +590,14 @@ function updateMood(){
     else if (pet.behavior === '追尾巴') pet.mood = 'dizzy';
     // 特殊行为的表情
     else if (pet.behavior === '满屏疯跑') pet.mood = 'surprised';
-    else if (pet.behavior === '爬到上面') pet.mood = 'surprised';
-    else if (pet.behavior === '咬鼠标') pet.mood = 'fierce';
+    else if (pet.behavior === '钻地探头') pet.mood = 'surprised';
+    else if (pet.behavior === '钻进鼠标') pet.mood = 'surprised';
     else if (pet.behavior === '穿屏瞬移') pet.mood = 'surprised';
+    else if (pet.behavior === '高空坠落') pet.mood = 'surprised';
+    else if (pet.behavior === '边缘偷看') pet.mood = 'neutral';
+    else if (pet.behavior === '斗鸡眼挑衅') pet.mood = 'neutral';
+    else if (pet.behavior === '假摔碰瓷') pet.mood = 'dizzy';
+    else if (pet.behavior === '眼珠乱转') pet.mood = 'neutral';
   }
 }
 
@@ -665,6 +702,45 @@ function updateLook(){
     pet.look.y = lerp(pet.look.y, ty, 0.3);
     return;
   }
+  // 眼珠乱转：瞳孔高频乱跳
+  if (pet.behavior === '眼珠乱转' && now < pet.behaviorUntil){
+    tx = (Math.random() - 0.5) * R * 0.8;
+    ty = (Math.random() - 0.5) * R * 0.6;
+    pet.look.x = lerp(pet.look.x, tx, 0.5);
+    pet.look.y = lerp(pet.look.y, ty, 0.5);
+    return;
+  }
+  // 高空坠落：眼睛朝下看
+  if (pet.behavior === '高空坠落' && now < pet.behaviorUntil){
+    tx = 0; ty = R * 0.3;
+    pet.look.x = lerp(pet.look.x, tx, 0.2);
+    pet.look.y = lerp(pet.look.y, ty, 0.2);
+    return;
+  }
+  // 边缘偷看：探出时眼珠朝屏幕里扫
+  if (pet.behavior === '边缘偷看' && now < pet.behaviorUntil){
+    const p2 = (now - pet.behaviorStart) / pet.behaviorDur;
+    const peeking = (p2 >= 0.35 && p2 < 0.55) || (p2 >= 0.7 && p2 < 0.85);
+    if (peeking){
+      tx = Math.sin(now * 0.03) * R * 0.2 + (pet.edgeDir === -1 ? R * 0.1 : -R * 0.1);
+      ty = Math.cos(now * 0.025) * R * 0.1;
+      pet.look.x = lerp(pet.look.x, tx, 0.2);
+      pet.look.y = lerp(pet.look.y, ty, 0.2);
+      return;
+    }
+  }
+  // 钻地探头：探头时东张西望
+  if (pet.behavior === '钻地探头' && now < pet.behaviorUntil){
+    const p2 = (now - pet.behaviorStart) / pet.behaviorDur;
+    const peeking = (p2 >= 0.48 && p2 < 0.66) || (p2 >= 0.76 && p2 < 0.88);
+    if (peeking){
+      tx = Math.sin(now * 0.05) * R * 0.4;
+      ty = Math.cos(now * 0.04) * R * 0.3 + R * 0.1;
+      pet.look.x = lerp(pet.look.x, tx, 0.3);
+      pet.look.y = lerp(pet.look.y, ty, 0.3);
+      return;
+    }
+  }
   if (mouse.active){
     const dx = mouse.x - pet.x, dy = mouse.y - pet.y;
     const d = Math.hypot(dx, dy) || 1;
@@ -697,7 +773,7 @@ function updateOpen(){
   }
 }
 
-// 特殊创意行为的物理（满屏疯跑/爬到上面/咬鼠标/穿屏瞬移）
+// 特殊创意行为的物理（满屏疯跑/钻地探头/钻进鼠标/穿屏瞬移/高空坠落/边缘偷看/假摔碰瓷）
 // 返回 true 表示本帧由该行为接管（跳过正常重力/碰撞/回家逻辑）
 function specialPhysics(dt){
   const b = pet.behavior;
@@ -722,45 +798,94 @@ function specialPhysics(dt){
     return true;
   }
 
-  if (b === '爬到上面'){
-    if (p < 0.22){ // 一跃而起
-      pet.vy += 0.4 * k;
-      pet.y += pet.vy * k;
-      pet.x += pet.vx * k;
-      if (p > 0.1 && pet.vy > -9) pet.vy = -9;
-    } else if (p < 0.6){ // 贴到屏幕顶部，左右爬
-      pet.y = lerp(pet.y, R * 0.9, 0.25);
+  if (b === '钻地探头'){
+    if (p < 0.20){ // 从底部钻下去（消失）
+      pet.y = lerp(floorY, H + R * 2, p / 0.20);
+      pet.x = clamp(pet.x + Math.sin(now * 0.02) * 0.5 * k, R, W - R);
       pet.vy = 0;
-      pet.vx = Math.sin(now * 0.006) * 1.2;
-      pet.x += pet.vx * k;
-      pet.x = clamp(pet.x, R, W - R);
-    } else { // 松开落回地面
+    } else if (p < 0.48){ // 屏幕外藏起来
+      pet.y = H + R * 2;
+      pet.vy = 0;
+    } else if (p < 0.66){ // 从顶部探头出来（只露脑袋东张西望）
+      const q = (p - 0.48) / 0.18;
+      pet.y = lerp(H + R * 2, R * 0.12, q);
+      pet.x = clamp(pet.x + Math.sin(now * 0.004) * 0.4 * k, R, W - R);
+    } else if (p < 0.76){ // 缩回上面（消失）
+      const q = (p - 0.66) / 0.10;
+      pet.y = lerp(R * 0.12, -R * 1.5, q);
+    } else if (p < 0.88){ // 再探头一次
+      const q = (p - 0.76) / 0.12;
+      pet.y = lerp(-R * 1.5, R * 0.12, q);
+      pet.x = clamp(pet.x + Math.sin(now * 0.005) * 0.4 * k, R, W - R);
+    } else { // 从顶部掉回地面
       pet.vy += 0.5 * k;
       pet.y += pet.vy * k;
-      pet.x += pet.vx * 0.2 * k;
-      if (pet.y >= floorY){ pet.y = floorY; pet.vy = 0; pet.vx = 0; }
+      if (pet.y >= floorY){ pet.y = floorY; pet.vy = 0; }
     }
     return true;
   }
 
-  if (b === '咬鼠标'){
-    const dx = mouse.x - pet.x, dy = mouse.y - pet.y;
-    const d = Math.hypot(dx, dy) || 1;
-    if (d > R * 0.9){
-      // 冲向光标
-      pet.vx += (dx / d) * 1.3;
-      pet.vy += (dy / d) * 1.1;
-    } else {
-      // 到达，原地"啃"（快速上下小跳）
-      pet.vx *= 0.5;
-      pet.vy = (Math.floor(now / 140) % 2 === 0) ? -4 : 1;
+  if (b === '高空坠落'){
+    pet.vy += 0.55 * k;
+    pet.y += pet.vy * k;
+    pet.x += pet.vx * k;
+    pet.vx *= 0.99;
+    if (pet.y >= floorY){
+      pet.y = floorY;
+      if (Math.abs(pet.vy) > 2.5){
+        pet.vy = -Math.abs(pet.vy) * 0.62; // 弹性回弹，越弹越低
+        pet.vx = (Math.random() < 0.5 ? -1 : 1) * RAND(1, 3);
+      } else {
+        pet.vy = 0; pet.vx = 0;
+      }
     }
-    pet.vx = clamp(pet.vx, -9, 9);
-    pet.vy = clamp(pet.vy, -9, 9);
+    if (pet.x < R){ pet.x = R; pet.vx = Math.abs(pet.vx); }
+    if (pet.x > W - R){ pet.x = W - R; pet.vx = -Math.abs(pet.vx); }
+    return true;
+  }
+
+  if (b === '边缘偷看'){
+    const restX = pet.edgeDir === -1 ? R : W - R;
+    const hideX = pet.edgeDir === -1 ? -R * 0.75 : W + R * 0.75;
+    const peekX = pet.edgeDir === -1 ? -R * 0.15 : W + R * 0.15;
+    pet.y = lerp(pet.y, floorY, 0.2);
+    if (p < 0.35){ pet.x = lerp(pet.x, hideX, 0.08); }
+    else if (p < 0.55){ pet.x = lerp(pet.x, peekX, 0.10); }
+    else if (p < 0.70){ pet.x = lerp(pet.x, hideX, 0.12); }
+    else if (p < 0.85){ pet.x = lerp(pet.x, peekX, 0.10); }
+    else { pet.x = lerp(pet.x, restX, 0.08); }
+    return true;
+  }
+
+  if (b === '假摔碰瓷'){
+    pet.vy += 0.5 * k;
     pet.x += pet.vx * k;
     pet.y += pet.vy * k;
-    pet.vx *= 0.94; pet.vy *= 0.94;
-    if (pet.y >= floorY){ pet.y = floorY; if (pet.vy > 0) pet.vy = 0; }
+    pet.vx *= 0.92;
+    if (pet.y >= floorY){
+      pet.y = floorY;
+      if (pet.vy > 0) pet.vy = -Math.abs(pet.vy) * 0.35;
+    }
+    if (pet.x < R){ pet.x = R; pet.vx = Math.abs(pet.vx) * 0.5; }
+    if (pet.x > W - R){ pet.x = W - R; pet.vx = -Math.abs(pet.vx) * 0.5; }
+    return true;
+  }
+
+  if (b === '钻进鼠标'){
+    if (p < 0.20){ // 直接消失：朝光标方向沉入屏幕底边
+      pet.y = lerp(floorY, H + R * 2, p / 0.20);
+      pet.x = lerp(pet.x, mouse.x, 0.25);
+      pet.vy = 0; pet.vx = 0;
+    } else if (p < 0.58){ // 藏起来，光标处出现团子色小球（在 draw 里画）
+      pet.y = H + R * 2;
+    } else if (p < 0.78){ // 从光标处被"挤出来"：定位到光标，身体从小变大（draw 里控制大小）
+      pet.x = mouse.x; pet.y = mouse.y;
+      pet.vx = 0; pet.vy = 0;
+    } else { // 完整团子从光标处掉回地面
+      pet.vy += 0.5 * k;
+      pet.y += pet.vy * k;
+      if (pet.y >= floorY){ pet.y = floorY; pet.vy = -Math.abs(pet.vy) * 0.4; }
+    }
     return true;
   }
 
@@ -859,6 +984,14 @@ function updatePhysics(dt){
       pet.vy = -9;
       pet.vx = (Math.random() < 0.5 ? -1 : 1) * RAND(2, 4);
     }
+  }
+
+  // 打字小跳：检测到敲键盘就跟着节奏轻轻跳（原地，不乱跑、不打扰其它状态）
+  if (typeHops > 0 && !pet.chasing && !pet.goingHome && !music.playing &&
+      pet.y >= floorY - 1 && Math.abs(pet.vy) < 1){
+    typeHops--;
+    pet.vy = -4.5;
+    pet.vx += (Math.random() < 0.5 ? -1 : 1) * 0.4;
   }
 }
 
@@ -980,6 +1113,52 @@ function drawEye(x, y, r, open, mood, side){
   }
 }
 
+function drawDrillMouse(p){
+  // 身体圆 + 眼睛（供钻进鼠标的各个阶段复用，身体始终正圆）
+  const body = (bx, by, sc) => {
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.scale(sc, sc);
+    ctx.fillStyle = bodyColor;
+    ctx.strokeStyle = shade(bodyColor, -0.25);
+    ctx.lineWidth = Math.max(2, R * 0.03);
+    ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const sx = R * 0.34, eyeY = -R * 0.05, eyeR = R * 0.22;
+    drawEye(-sx + pet.look.x, eyeY + pet.look.y, eyeR, pet.openL, pet.mood, -1);
+    drawEye( sx + pet.look.x, eyeY + pet.look.y, eyeR, pet.openR, pet.mood,  1);
+    ctx.restore();
+  };
+
+  if (p < 0.20){
+    // 阶段一：朝光标沉入底部消失
+    body(pet.x, pet.y, 1);
+    return;
+  }
+  if (p < 0.58){
+    // 阶段二：藏起来，光标处出现团子色小球（像光标变成了团子），微微呼吸
+    const breathe = 1 + Math.sin(now * 0.02) * 0.12;
+    const br = R * 0.42 * breathe;
+    ctx.fillStyle = bodyColor;
+    ctx.strokeStyle = shade(bodyColor, -0.25);
+    ctx.lineWidth = Math.max(1.5, br * 0.06);
+    ctx.beginPath(); ctx.arc(mouse.x, mouse.y, br, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const ex = br * 0.32, ey = -br * 0.02, er = br * 0.22;
+    ctx.fillStyle = eyeColor;
+    ctx.beginPath(); ctx.arc(mouse.x - ex, mouse.y + ey, er, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(mouse.x + ex, mouse.y + ey, er, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  if (p < 0.78){
+    // 阶段三：从光标处被"挤出来"，身体从小变大（仍是正圆）
+    const q = (p - 0.58) / 0.20;
+    body(pet.x, pet.y, lerp(0.15, 1, q));
+    return;
+  }
+  // 阶段四：完整团子从光标处掉回地面
+  body(pet.x, pet.y, 1);
+}
+
 function draw(){
   ctx.clearRect(0, 0, W, H);
 
@@ -989,17 +1168,27 @@ function draw(){
     ctx.beginPath(); ctx.arc(pet.homeX, floorY + R * 0.7, R * 0.25, 0, Math.PI * 2); ctx.fill();
   }
 
-  // 地面阴影（穿屏瞬移"消失"阶段不画阴影，避免露馅）
+  // 地面阴影（特殊行为"消失"阶段不画阴影，避免露馅）
   const b0 = pet.behavior;
-  const hidden = b0 === '穿屏瞬移' && now < pet.behaviorUntil &&
-    (now - pet.behaviorStart) / pet.behaviorDur >= 0.28 &&
-    (now - pet.behaviorStart) / pet.behaviorDur < 0.72;
+  let hidden = false;
+  if (now < pet.behaviorUntil){
+    const sp = (now - pet.behaviorStart) / pet.behaviorDur;
+    if (b0 === '穿屏瞬移') hidden = sp >= 0.28 && sp < 0.72;
+    else if (b0 === '钻地探头') hidden = (sp >= 0.20 && sp < 0.48) || (sp >= 0.66 && sp < 0.76);
+    else if (b0 === '钻进鼠标') hidden = sp >= 0.20 && sp < 0.58;
+  }
   if (!hidden){
     const shadowScale = 1 - clamp((floorY - pet.y) / 300, 0, 1) * 0.5;
     ctx.fillStyle = 'rgba(0,0,0,0.20)';
     ctx.beginPath();
     ctx.ellipse(pet.x, floorY + R * 0.85, R * 0.8 * shadowScale, R * 0.16 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // 钻进鼠标：特殊绘制（消失 → 光标变团子色 → 挤出来 → 落地）
+  if (b0 === '钻进鼠标' && now < pet.behaviorUntil){
+    drawDrillMouse(clamp((now - pet.behaviorStart) / pet.behaviorDur, 0, 1));
+    return;
   }
 
   const shakeX = pet.shake > 0.01 ? (Math.random() - 0.5) * pet.shake * 6 : 0;
@@ -1045,6 +1234,13 @@ function draw(){
     } else if (b === '追尾巴'){
       moffX = Math.cos(now * 0.006) * R * 0.12; // 原地绕圈
       moffY = Math.sin(now * 0.006) * R * 0.06;
+    } else if (b === '斗鸡眼挑衅'){
+      // 朝鼠标方向缓缓凑近再退回
+      const dx = mouse.x - pet.x, dy = mouse.y - pet.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const lean = Math.sin(p * Math.PI) * R * 0.18;
+      moffX = (dx / d) * lean;
+      moffY = (dy / d) * lean;
     }
   }
   // 随音乐舞动：音乐播放且没有互动动作时，用当前舞步平移（仍只是整体平移，不变形）
@@ -1080,8 +1276,9 @@ function draw(){
     drawEye(-sx + pet.look.x, eyeY + pet.look.y, eyeR * 0.45, 1, 'neutral', -1);
     drawEye( sx + pet.look.x, eyeY + pet.look.y, eyeR * 0.45, 1, 'neutral',  1);
   } else {
-    drawEye(-sx + pet.look.x, eyeY + pet.look.y, eyeR, pet.openL, pet.mood, -1);
-    drawEye( sx + pet.look.x, eyeY + pet.look.y, eyeR, pet.openR, pet.mood,  1);
+    const cross = (b === '斗鸡眼挑衅') ? R * 0.16 : 0;
+    drawEye(-sx + pet.look.x + cross, eyeY + pet.look.y, eyeR, pet.openL, pet.mood, -1);
+    drawEye( sx + pet.look.x - cross, eyeY + pet.look.y, eyeR, pet.openR, pet.mood,  1);
   }
 
   // 睡死打呼噜 → Zzz；冒泡泡 → 圆泡泡
