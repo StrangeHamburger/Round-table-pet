@@ -55,11 +55,6 @@ function updateBehavior(){
   else if (name === '穿屏瞬移'){
     Pet.state.pet.vx = 0; Pet.state.pet.vy = 3;
   }
-  else if (name === '高空坠落'){
-    Pet.state.pet.y = -Pet.env.R * 2;
-    Pet.state.pet.x = Pet.util.RAND(Pet.env.R, Pet.env.W - Pet.env.R);
-    Pet.state.pet.vx = 0; Pet.state.pet.vy = 0;
-  }
   else if (name === '边缘偷看'){
     Pet.state.pet.edgeDir = Math.random() < 0.5 ? -1 : 1;
     Pet.state.pet.vx = 0; Pet.state.pet.vy = 0;
@@ -128,7 +123,6 @@ function updateMood(){
     else if (Pet.state.pet.behavior === '钻地探头') Pet.state.pet.mood = 'surprised';
     else if (Pet.state.pet.behavior === '钻进鼠标') Pet.state.pet.mood = 'surprised';
     else if (Pet.state.pet.behavior === '穿屏瞬移') Pet.state.pet.mood = 'surprised';
-    else if (Pet.state.pet.behavior === '高空坠落') Pet.state.pet.mood = 'surprised';
     else if (Pet.state.pet.behavior === '边缘偷看') Pet.state.pet.mood = 'neutral';
     else if (Pet.state.pet.behavior === '斗鸡眼挑衅') Pet.state.pet.mood = 'neutral';
     else if (Pet.state.pet.behavior === '假摔碰瓷') Pet.state.pet.mood = 'dizzy';
@@ -245,13 +239,6 @@ function updateLook(){
     Pet.state.pet.look.y = Pet.util.lerp(Pet.state.pet.look.y, ty, 0.5);
     return;
   }
-  // 高空坠落：眼睛朝下看
-  if (Pet.state.pet.behavior === '高空坠落' && Pet.state.now < Pet.state.pet.behaviorUntil){
-    tx = 0; ty = Pet.env.R * 0.3;
-    Pet.state.pet.look.x = Pet.util.lerp(Pet.state.pet.look.x, tx, 0.2);
-    Pet.state.pet.look.y = Pet.util.lerp(Pet.state.pet.look.y, ty, 0.2);
-    return;
-  }
   // 边缘偷看：探出时眼珠朝屏幕里扫
   if (Pet.state.pet.behavior === '边缘偷看' && Pet.state.now < Pet.state.pet.behaviorUntil){
     const p2 = (Pet.state.now - Pet.state.pet.behaviorStart) / Pet.state.pet.behaviorDur;
@@ -308,7 +295,7 @@ function updateOpen(){
   }
 }
 
-// 特殊创意行为的物理（满屏疯跑/钻地探头/钻进鼠标/穿屏瞬移/高空坠落/边缘偷看/假摔碰瓷）
+// 特殊创意行为的物理（满屏疯跑/钻地探头/钻进鼠标/穿屏瞬移/边缘偷看/假摔碰瓷）
 // 返回 true 表示本帧由该行为接管（跳过正常重力/碰撞/回家逻辑）
 function specialPhysics(dt){
   const b = Pet.state.pet.behavior;
@@ -334,48 +321,16 @@ function specialPhysics(dt){
   }
 
   if (b === '钻地探头'){
-    if (p < 0.20){ // 从底部钻下去（消失）
-      Pet.state.pet.y = Pet.util.lerp(Pet.env.floorY, Pet.env.H + Pet.env.R * 2, p / 0.20);
+    if (p < 0.35){ // 从底部钻下去（消失），不再探头回升
+      Pet.state.pet.y = Pet.util.lerp(Pet.env.floorY, Pet.env.H + Pet.env.R * 2, p / 0.35);
       Pet.state.pet.x = Pet.util.clamp(Pet.state.pet.x + Math.sin(Pet.state.now * 0.02) * 0.5 * k, Pet.env.R, Pet.env.W - Pet.env.R);
       Pet.state.pet.vy = 0;
-    } else if (p < 0.48){ // 屏幕外藏起来
-      Pet.state.pet.y = Pet.env.H + Pet.env.R * 2;
-      Pet.state.pet.vy = 0;
-    } else if (p < 0.66){ // 从顶部探头出来（只露脑袋东张西望）
-      const q = (p - 0.48) / 0.18;
-      Pet.state.pet.y = Pet.util.lerp(Pet.env.H + Pet.env.R * 2, Pet.env.R * 0.12, q);
-      Pet.state.pet.x = Pet.util.clamp(Pet.state.pet.x + Math.sin(Pet.state.now * 0.004) * 0.4 * k, Pet.env.R, Pet.env.W - Pet.env.R);
-    } else if (p < 0.76){ // 缩回上面（消失）
-      const q = (p - 0.66) / 0.10;
-      Pet.state.pet.y = Pet.util.lerp(Pet.env.R * 0.12, -Pet.env.R * 1.5, q);
-    } else if (p < 0.88){ // 再探头一次
-      const q = (p - 0.76) / 0.12;
-      Pet.state.pet.y = Pet.util.lerp(-Pet.env.R * 1.5, Pet.env.R * 0.12, q);
-      Pet.state.pet.x = Pet.util.clamp(Pet.state.pet.x + Math.sin(Pet.state.now * 0.005) * 0.4 * k, Pet.env.R, Pet.env.W - Pet.env.R);
-    } else { // 从顶部掉回地面
+    } else { // 直接从顶部掉回地面
+      if (Pet.state.pet.y > -Pet.env.R * 2){ Pet.state.pet.y = -Pet.env.R * 2; Pet.state.pet.vy = 1; Pet.state.pet.x = Pet.util.RAND(Pet.env.R, Pet.env.W - Pet.env.R); }
       Pet.state.pet.vy += 0.5 * k;
       Pet.state.pet.y += Pet.state.pet.vy * k;
       if (Pet.state.pet.y >= Pet.env.floorY){ Pet.state.pet.y = Pet.env.floorY; Pet.state.pet.vy = 0; }
     }
-    return true;
-  }
-
-  if (b === '高空坠落'){
-    Pet.state.pet.vy += 0.55 * k;
-    Pet.state.pet.y += Pet.state.pet.vy * k;
-    Pet.state.pet.x += Pet.state.pet.vx * k;
-    Pet.state.pet.vx *= 0.99;
-    if (Pet.state.pet.y >= Pet.env.floorY){
-      Pet.state.pet.y = Pet.env.floorY;
-      if (Math.abs(Pet.state.pet.vy) > 2.5){
-        Pet.state.pet.vy = -Math.abs(Pet.state.pet.vy) * 0.62; // 弹性回弹，越弹越低
-        Pet.state.pet.vx = (Math.random() < 0.5 ? -1 : 1) * Pet.util.RAND(1, 3);
-      } else {
-        Pet.state.pet.vy = 0; Pet.state.pet.vx = 0;
-      }
-    }
-    if (Pet.state.pet.x < Pet.env.R){ Pet.state.pet.x = Pet.env.R; Pet.state.pet.vx = Math.abs(Pet.state.pet.vx); }
-    if (Pet.state.pet.x > Pet.env.W - Pet.env.R){ Pet.state.pet.x = Pet.env.W - Pet.env.R; Pet.state.pet.vx = -Math.abs(Pet.state.pet.vx); }
     return true;
   }
 
