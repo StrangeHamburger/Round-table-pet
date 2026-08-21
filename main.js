@@ -19,12 +19,13 @@ if (!gotLock) {
 
 let win = null;
 let tray = null;
-let musicChild = null;
 let musicBuf = '';
 let musicPending = [];
-let keyChild = null;
 let keyBuf = '';
 let keyPending = [];
+const bridges = {};
+const bridgeRestarts = {};
+const bridgePollStarted = {};
 
 // ---------- 设置持久化 ----------
 let settingsCache = {};
@@ -123,121 +124,104 @@ function createWindow() {
     const p = screen.getCursorScreenPoint();
     win.webContents.send('cursor', { x: p.x, y: p.y });
   }, 33);
+
+  // 启动音乐 / 键盘桥接（意外退出会自动重启，最多 5 次）
+  startBridge('music');
+  startBridge('keyboard');
 }
 
 function send(cmd, data) {
   if (win && !win.isDestroyed()) win.webContents.send('cmd', { cmd, data });
 }
 
-// ---------- 音乐桥接（GSMTC 经 PowerShell，检测"是否有音乐在播放"） ----------
-function musicRequest() {
-  if (!musicChild) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    musicPending.push(resolve);
-    musicChild.stdin.write('get\n');
-  });
-}
-
-function startMusicBridge() {
-  if (musicChild) return;
+// ---------- 音乐 / 键盘 桥接（PowerShell，检测播放 / 打字状态） ----------
+// 统一桥接启动器：意外退出后自动重启，最多 5 次重试。
+function startBridge(name) {
+  if (bridges[name]) return;
+  if ((bridgeRestarts[name] || 0) >= 5) return;
   const scriptPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'music.ps1')
-    : path.join(__dirname, 'music.ps1');
-  musicChild = spawn(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
-    { stdio: ['pipe', 'pipe', 'pipe'] }
-  );
+    ? path.join(process.resourcesPath, name + '.ps1')
+    : path.join(__dirname, name + '.ps1');
+  const p = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+  bridges[name] = p;
 
-  musicChild.stdout.setEncoding('utf8');
-  musicChild.stdout.on('data', (d) => {
-    musicBuf += d;
-    let i;
-    while ((i = musicBuf.indexOf('\n')) >= 0) {
-      const line = musicBuf.slice(0, i).trim();
-      musicBuf = musicBuf.slice(i + 1);
-      if (line && musicPending.length) {
-        const resolve = musicPending.shift();
-        let obj = null;
-        try { obj = JSON.parse(line); } catch (e) { obj = null; }
-        resolve(obj);
+  p.stdout.setEncoding('utf8');
+  p.stdout.on('data', (d) => {
+    if (name === 'music') {
+      musicBuf += d;
+      let i;
+      while ((i = musicBuf.indexOf('\n')) >= 0) {
+        const line = musicBuf.slice(0, i).trim();
+        musicBuf = musicBuf.slice(i + 1);
+        if (line && musicPending.length) {
+          const resolve = musicPending.shift();
+          let obj = null;
+          try { obj = JSON.parse(line); } catch (e) { obj = null; }
+          resolve(obj);
+        }
+      }
+    } else if (name === 'keyboard') {
+      keyBuf += d;
+      let i;
+      while ((i = keyBuf.indexOf('\n')) >= 0) {
+        const line = keyBuf.slice(0, i).trim();
+        keyBuf = keyBuf.slice(i + 1);
+        if (line && keyPending.length) {
+          const resolve = keyPending.shift();
+          let obj = null;
+          try { obj = JSON.parse(line); } catch (e) { obj = null; }
+          resolve(obj);
+        }
       }
     }
   });
-  musicChild.stderr.on('data', (d) => console.error('[music]', String(d).trim()));
-  musicChild.on('exit', () => { musicChild = null; });
 
-  // 每 2 秒轮询一次，把播放状态推给渲染进程
-  setInterval(() => {
-    musicRequest().then((state) => {
-      if (state && win && !win.isDestroyed()) {
-        win.webContents.send('music', state);
-      }
-    });
-  }, 2000);
-}
+  p.stderr.on('data', d => {
+    try { if (win && !win.isDestroyed()) win.webContents.send(name + '-error', String(d)); } catch (e) {}
+  });
 
-function stopMusicBridge() {
-  if (musicChild) {
-    try { musicChild.stdin.write('quit\n'); } catch (e) {}
-    try { musicChild.kill(); } catch (e) {}
-    musicChild = null;
+  p.on('exit', (code, sig) => {
+    bridges[name] = null;
+    if ((bridgeRestarts[name] || 0) < 5) {
+      bridgeRestarts[name] = (bridgeRestarts[name] || 0) + 1;
+      setTimeout(() => startBridge(name), 1000);
+    }
+  });
+
+  if (!bridgePollStarted[name]) {
+    bridgePollStarted[name] = true;
+    const interval = name === 'music' ? 2000 : 100;
+    const pending = name === 'music' ? musicPending : keyPending;
+    setInterval(() => {
+      const child = bridges[name];
+      if (!child) return;
+      new Promise((resolve) => {
+        pending.push(resolve);
+        try { child.stdin.write('get\n'); } catch (e) { resolve(null); }
+      }).then((state) => {
+        if (state && win && !win.isDestroyed()) {
+          win.webContents.send(name, state);
+        }
+      });
+    }, interval);
   }
 }
 
-// ---------- 键盘桥接（检测"是否在打字"，PowerShell GetAsyncKeyState） ----------
-function keyRequest() {
-  if (!keyChild) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    keyPending.push(resolve);
-    keyChild.stdin.write('get\n');
-  });
-}
-
-function startKeyBridge() {
-  if (keyChild) return;
-  const scriptPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'keyboard.ps1')
-    : path.join(__dirname, 'keyboard.ps1');
-  keyChild = spawn(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
-    { stdio: ['pipe', 'pipe', 'pipe'] }
-  );
-
-  keyChild.stdout.setEncoding('utf8');
-  keyChild.stdout.on('data', (d) => {
-    keyBuf += d;
-    let i;
-    while ((i = keyBuf.indexOf('\n')) >= 0) {
-      const line = keyBuf.slice(0, i).trim();
-      keyBuf = keyBuf.slice(i + 1);
-      if (line && keyPending.length) {
-        const resolve = keyPending.shift();
-        let obj = null;
-        try { obj = JSON.parse(line); } catch (e) { obj = null; }
-        resolve(obj);
-      }
-    }
-  });
-  keyChild.stderr.on('data', (d) => console.error('[keyboard]', String(d).trim()));
-  keyChild.on('exit', () => { keyChild = null; });
-
-  // 每 100ms 轮询一次，把打字状态推给渲染进程
-  setInterval(() => {
-    keyRequest().then((state) => {
-      if (state && win && !win.isDestroyed()) {
-        win.webContents.send('keyboard', state);
-      }
-    });
-  }, 100);
+function stopMusicBridge() {
+  const p = bridges.music;
+  if (p) {
+    try { p.stdin.write('quit\n'); } catch (e) {}
+    try { p.kill(); } catch (e) {}
+    bridges.music = null;
+  }
 }
 
 function stopKeyBridge() {
-  if (keyChild) {
-    try { keyChild.stdin.write('quit\n'); } catch (e) {}
-    try { keyChild.kill(); } catch (e) {}
-    keyChild = null;
+  const p = bridges.keyboard;
+  if (p) {
+    try { p.stdin.write('quit\n'); } catch (e) {}
+    try { p.kill(); } catch (e) {}
+    bridges.keyboard = null;
   }
 }
 
@@ -270,8 +254,6 @@ app.whenReady().then(() => {
     tray.setToolTip('团团桌面宠物');
     tray.setContextMenu(trayMenu);
   }
-  startMusicBridge();
-  startKeyBridge();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
