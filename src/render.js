@@ -132,24 +132,15 @@ function drawDrillMouse(p){
     Pet.env.ctx.restore();
   };
 
-  if (p < 0.30){
-    // 阶段一：朝光标沉入底部，淡出消失
-    body(pet.x, pet.y, 1, 1 - (p / 0.30));
-    return;
-  }
-  if (p < 0.50){
-    // 阶段二：藏起来（什么都不画）
-    return;
-  }
-  if (p < 0.80){
-    // 阶段三：直接出现在鼠标正下方，跳到鼠标上（快速淡入 + 由下往上落定）
-    const a = Math.min(1, (p - 0.50) / 0.10);
-    const q = (p - 0.50) / 0.30;
+  if (p < 0.60){
+    // 阶段一：直接在鼠标正下方出现并跳到鼠标上（快速淡入 + 由下往上落定）
+    const a = Math.min(1, p / 0.10);
+    const q = p / 0.60;
     const e = 1 - (1 - q) * (1 - q); // easeOutQuad
     body(mouse.x, mouse.y + R * 3 * (1 - e), 1, a);
     return;
   }
-  // 阶段四：落在鼠标上后掉回地面
+  // 阶段二：落在鼠标上后掉回地面
   body(pet.x, pet.y, 1, 1);
 }
 
@@ -175,7 +166,7 @@ function draw(){
     const sp = (now - pet.behaviorStart) / pet.behaviorDur;
     if (b0 === '穿屏瞬移') hidden = sp >= 0.28 && sp < 0.72;
     else if (b0 === '钻地探头') hidden = (sp >= 0.20 && sp < 0.48) || (sp >= 0.66 && sp < 0.76);
-    else if (b0 === '钻进鼠标') hidden = sp >= 0.30 && sp < 0.80;
+    else if (b0 === '钻进鼠标') hidden = sp < 0.60;
   }
   if (!hidden){
     const shadowScale = 1 - Pet.util.clamp((floorY - pet.y) / 300, 0, 1) * 0.5;

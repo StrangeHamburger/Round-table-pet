@@ -19,9 +19,10 @@ function updatePhysics(dt){
     if (Math.abs(Pet.state.pet.vy) > 2){
       const busy = Pet.state.pet.chasing || Pet.state.pet.goingHome || Pet.state.menuOpen;
       const free = Pet.state.now >= Pet.state.pet.behaviorUntil && Pet.state.pet.behavior !== '穿屏瞬移';
-      if (!busy && free && Math.random() < 0.4){
+      if (!busy && free && Math.random() < 0.4 && Pet.state.now >= (Pet.state.pet.noDiveUntil || 0)){
         Pet.state.pet.y = Pet.env.floorY;
         Pet.state.pet.vy = 0;
+        Pet.state.pet.noDiveUntil = Pet.state.now + 4000;
         Pet.behaviors.setBehavior('穿屏瞬移', 1400);
       } else {
         Pet.state.pet.y = Pet.env.floorY; Pet.state.pet.vy *= -0.35;

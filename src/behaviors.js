@@ -31,6 +31,10 @@ function updateBehavior(){
   if (!chosen) chosen = Pet.config.BEHAVIORS[Pet.config.BEHAVIORS.length - 1];
   const [name, dur] = chosen;
   setBehavior(name, dur);
+  // 钻进鼠标 / 穿屏瞬移 结束后落地的瞬间不要立刻又触发「扎地」，避免连续下坠
+  if (name === '钻进鼠标' || name === '穿屏瞬移'){
+    Pet.state.pet.noDiveUntil = performance.now() + dur + 1500;
+  }
 
   // 各行为的启动效果（初速度/方向等）
   if (name === '蹦了一下'){ Pet.state.pet.vy = -6; }
@@ -403,15 +407,9 @@ function specialPhysics(dt){
   }
 
   if (b === '钻进鼠标'){
-    if (p < 0.30){ // 朝光标方向沉入底部，淡出消失
-      Pet.state.pet.y = Pet.util.lerp(Pet.env.floorY, Pet.env.H + Pet.env.R * 2, p / 0.30);
-      Pet.state.pet.x = Pet.util.lerp(Pet.state.pet.x, Pet.state.mouse.x, 0.18 * k);
-      Pet.state.pet.vy = 0; Pet.state.pet.vx = 0;
-    } else if (p < 0.50){ // 藏起来（屏幕外）
-      Pet.state.pet.y = Pet.env.H + Pet.env.R * 2;
-    } else if (p < 0.80){ // 直接来到鼠标正下方，再跳到鼠标上（由下往上落定）
+    if (p < 0.60){ // 直接在鼠标正下方出现，跳到鼠标上（由下往上落定）
       Pet.state.pet.x = Pet.state.mouse.x;
-      const q = (p - 0.50) / 0.30;
+      const q = p / 0.60;
       const e = 1 - (1 - q) * (1 - q); // easeOutQuad
       Pet.state.pet.y = Pet.state.mouse.y + Pet.env.R * 3 * (1 - e);
       Pet.state.pet.vy = 0; Pet.state.pet.vx = 0;
