@@ -240,6 +240,16 @@ function init(){
     }
   });
 
+  Pet.state.night = false;
+  Pet.state.timeHour = -1;
+  desktopAPI.onTime(t => {
+    if (!t) return;
+    Pet.state.timeHour = t.hour;
+    if (Pet.state.settings && Pet.state.settings.timeAware) {
+      Pet.state.night = (t.hour < 6 || t.hour >= 23);
+    }
+  });
+
   window.addEventListener('mousemove', e => {
     const lx = e.clientX, ly = e.clientY;
     Pet.state.mouse.px = Pet.state.mouse.x; Pet.state.mouse.py = Pet.state.mouse.y;

@@ -73,6 +73,10 @@ function updateBehavior(){
 }
 
 function updateMood(){
+  if (Pet.state.settings && Pet.state.settings.timeAware && Pet.state.night) {
+    Pet.state.pet.mood = 'sleepy';
+    return;
+  }
   // 音乐播放且不在互动动作里 → 表情慢速轮换（避免眼睛变太快）
   if (Pet.state.music.playing && Pet.state.now >= Pet.state.pet.behaviorUntil){
     if (Pet.state.now >= Pet.state.musicMood.next){
@@ -130,7 +134,7 @@ function updateMood(){
 
 // 舞步：随音乐每 2~4 秒随机切换一种舞姿（只整体平移，不变形）
 function updateDance(){
-  if (!Pet.state.music.playing){ Pet.state.dance.style = 0; return; }
+  if (!Pet.state.music.playing || (Pet.state.settings && Pet.state.settings.timeAware && Pet.state.night)) { Pet.state.dance.style = 0; return; }
   if (Pet.state.now >= Pet.state.dance.next){
     Pet.state.dance.next = Pet.state.now + Pet.util.RAND(2000, 4000) / (Pet.state.music.rate || 1);
     Pet.state.dance.style = (Math.random() * 6) | 0;

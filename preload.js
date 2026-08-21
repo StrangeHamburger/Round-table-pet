@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   saveSettings: (obj) => ipcRenderer.send('save-settings', obj),
   onSavePosition: (cb) => ipcRenderer.on('save-position', (e) => cb()),
   onMute: (cb) => ipcRenderer.on('mute', (e, p) => cb(p)),
+  onTime: (cb) => ipcRenderer.on('time', (e, p) => cb(p)),
 });

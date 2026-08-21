@@ -108,7 +108,12 @@ function createWindow() {
 
   win.webContents.once('did-finish-load', () => {
     try { const s = loadSettings(); win.webContents.send('mute', !s.sound); } catch (e) {}
+    win.webContents.send('time', { hour: new Date().getHours() });
   });
+
+  setInterval(() => {
+    try { if (win && !win.isDestroyed()) win.webContents.send('time', { hour: new Date().getHours() }); } catch (e) {}
+  }, 60000);
 
   win.on('closed', () => { win = null; });
 
