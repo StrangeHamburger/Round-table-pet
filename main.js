@@ -49,6 +49,9 @@ ipcMain.on('save-settings', (e, obj) => {
   if (obj && typeof obj.autoStart === 'boolean' && app.isPackaged) {
     app.setLoginItemSettings({ openAtLogin: !!obj.autoStart, path: process.execPath });
   }
+  if (win && !win.isDestroyed() && obj && typeof obj.sound === 'boolean') {
+    win.webContents.send('mute', !obj.sound);
+  }
 });
 app.on('before-quit', () => {
   if (win && !win.isDestroyed()) win.webContents.send('save-position');
@@ -102,6 +105,10 @@ function createWindow() {
   // 默认鼠标穿透（带 forward，让渲染进程仍能收到 mousemove 以做悬停检测）
   win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile('index.html');
+
+  win.webContents.once('did-finish-load', () => {
+    try { const s = loadSettings(); win.webContents.send('mute', !s.sound); } catch (e) {}
+  });
 
   win.on('closed', () => { win = null; });
 
