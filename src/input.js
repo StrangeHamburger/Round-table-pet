@@ -161,6 +161,13 @@ function closeMenu(){
 
 function init(){
   Pet.state.muted = false;
+  Pet.state.bridgeAvailable = { music: true, keyboard: true };
+  desktopAPI.onBridgeError(n => {
+    if (n && Pet.state.bridgeAvailable[n] !== false) {
+      Pet.state.bridgeAvailable[n] = false;
+      console.warn('[团团] 桥接不可用: ' + n);
+    }
+  });
   desktopAPI.onMute(m => { Pet.state.muted = !!m; });
 
   desktopAPI.getInfo().then(info => { Pet.env.ox = info.x; Pet.env.oy = info.y; });
@@ -168,6 +175,7 @@ function init(){
   // 音乐播放状态（GSMTC）：有音乐播放就跳舞
   desktopAPI.onMusic(s => {
     if (!s) return;
+    Pet.state.bridgeAvailable.music = true;
     Pet.state.music.playing = !!s.playing;
     if (s.trackId && s.trackId !== Pet.state.lastTrackId) {
       Pet.state.lastTrackId = s.trackId;
