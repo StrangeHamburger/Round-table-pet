@@ -14,9 +14,21 @@ function updatePhysics(dt){
   Pet.state.pet.y += Pet.state.pet.vy * (dt / 16.7);
   Pet.state.pet.vx *= 0.92; Pet.state.pet.vy *= 0.98;
 
+  // 砸到地面：用力下落时不再原地反弹，而是"扎地不见 → 下次从屏幕上方出现并落下"（一次性，落定后停住）
   if (Pet.state.pet.y >= Pet.env.floorY){
-    Pet.state.pet.y = Pet.env.floorY;
-    if (Math.abs(Pet.state.pet.vy) > 2) Pet.state.pet.vy *= -0.35; else Pet.state.pet.vy = 0;
+    if (Math.abs(Pet.state.pet.vy) > 2){
+      const busy = Pet.state.pet.chasing || Pet.state.pet.goingHome || Pet.state.menuOpen;
+      const free = Pet.state.now >= Pet.state.pet.behaviorUntil && Pet.state.pet.behavior !== '穿屏瞬移';
+      if (!busy && free && Math.random() < 0.4){
+        Pet.state.pet.y = Pet.env.floorY;
+        Pet.state.pet.vy = 0;
+        Pet.behaviors.setBehavior('穿屏瞬移', 1400);
+      } else {
+        Pet.state.pet.y = Pet.env.floorY; Pet.state.pet.vy *= -0.35;
+      }
+    } else {
+      Pet.state.pet.y = Pet.env.floorY; Pet.state.pet.vy = 0;
+    }
   }
   if (Pet.state.pet.x < Pet.env.R){ Pet.state.pet.x = Pet.env.R; Pet.state.pet.vx = Math.abs(Pet.state.pet.vx) * 0.7; }
   if (Pet.state.pet.x > Pet.env.W - Pet.env.R){ Pet.state.pet.x = Pet.env.W - Pet.env.R; Pet.state.pet.vx = -Math.abs(Pet.state.pet.vx) * 0.7; }

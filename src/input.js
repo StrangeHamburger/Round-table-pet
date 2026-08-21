@@ -13,7 +13,6 @@ function persist() {
     lastX: Pet.state.pet.x,
     lastY: Pet.state.pet.y,
     autoStart: !!(Pet.state.settings && Pet.state.settings.autoStart),
-    sound: !(Pet.state.settings && Pet.state.settings.sound === false),
   });
 }
 
@@ -82,28 +81,6 @@ function tickle(){
   Pet.behaviors.setBehavior('被挠痒痒');
 }
 
-function clickSfx() {
-  if (Pet.state.muted) return;
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    if (!Pet.state.audioCtx) Pet.state.audioCtx = new AC();
-    const ctx = Pet.state.audioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = 'triangle';
-    o.frequency.setValueAtTime(660, ctx.currentTime);
-    o.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.06);
-    g.gain.setValueAtTime(0.0001, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.08);
-    o.connect(g); g.connect(ctx.destination);
-    o.start();
-    o.stop(ctx.currentTime + 0.09);
-  } catch (e) {}
-}
-
 function clickPet(){
   Pet.state.lastInteract = performance.now();
   Pet.state.excite = Pet.util.clamp(Pet.state.excite + 0.35, 0, 1);
@@ -160,7 +137,6 @@ function closeMenu(){
 }
 
 function init(){
-  Pet.state.muted = false;
   Pet.state.bridgeAvailable = { music: true, keyboard: true };
   desktopAPI.onBridgeError(n => {
     if (n && Pet.state.bridgeAvailable[n] !== false) {
@@ -168,7 +144,6 @@ function init(){
       console.warn('[团团] 桥接不可用: ' + n);
     }
   });
-  desktopAPI.onMute(m => { Pet.state.muted = !!m; });
 
   desktopAPI.getInfo().then(info => { Pet.env.ox = info.x; Pet.env.oy = info.y; });
 
@@ -282,7 +257,6 @@ function init(){
     Pet.state.pressHold = Pet.state.downTime;
     Pet.state.downRelX = dx; Pet.state.downRelY = dy;
     if (dx * dx + dy * dy <= Pet.env.R * Pet.env.R){
-      clickSfx();
       Pet.state.dragging = true; Pet.state.dragDX = dx; Pet.state.dragDY = dy; Pet.state.dragMoved = false;
       Pet.state.lastInteract = performance.now();
       Pet.env.cv.style.cursor = 'grabbing';

@@ -115,9 +115,10 @@ function drawDrillMouse(p){
   const now = Pet.state.now;
   const pet = Pet.state.pet;
   const mouse = Pet.state.mouse;
-  // 身体圆 + 眼睛（供钻进鼠标的各个阶段复用，身体始终正圆）
-  const body = (bx, by, sc) => {
+  // 身体圆 + 眼睛（供钻进鼠标的各个阶段复用，身体始终正圆，支持整体透明度淡入淡出）
+  const body = (bx, by, sc, a) => {
     Pet.env.ctx.save();
+    Pet.env.ctx.globalAlpha = a;
     Pet.env.ctx.translate(bx, by);
     Pet.env.ctx.scale(sc, sc);
     Pet.env.ctx.fillStyle = Pet.state.bodyColor;
@@ -131,33 +132,25 @@ function drawDrillMouse(p){
     Pet.env.ctx.restore();
   };
 
-  if (p < 0.20){
-    // 阶段一：朝光标沉入底部消失
-    body(pet.x, pet.y, 1);
+  if (p < 0.30){
+    // 阶段一：朝光标沉入底部，淡出消失
+    body(pet.x, pet.y, 1, 1 - (p / 0.30));
     return;
   }
-  if (p < 0.58){
-    // 阶段二：藏起来，光标处出现团子色小球（像光标变成了团子），微微呼吸
-    const breathe = 1 + Math.sin(now * 0.02) * 0.12;
-    const br = R * 0.42 * breathe;
-    Pet.env.ctx.fillStyle = Pet.state.bodyColor;
-    Pet.env.ctx.strokeStyle = Pet.util.shade(Pet.state.bodyColor, -0.25);
-    Pet.env.ctx.lineWidth = Math.max(1.5, br * 0.06);
-    Pet.env.ctx.beginPath(); Pet.env.ctx.arc(mouse.x, mouse.y, br, 0, Math.PI * 2); Pet.env.ctx.fill(); Pet.env.ctx.stroke();
-    const ex = br * 0.32, ey = -br * 0.02, er = br * 0.22;
-    Pet.env.ctx.fillStyle = Pet.state.eyeColor;
-    Pet.env.ctx.beginPath(); Pet.env.ctx.arc(mouse.x - ex, mouse.y + ey, er, 0, Math.PI * 2); Pet.env.ctx.fill();
-    Pet.env.ctx.beginPath(); Pet.env.ctx.arc(mouse.x + ex, mouse.y + ey, er, 0, Math.PI * 2); Pet.env.ctx.fill();
+  if (p < 0.50){
+    // 阶段二：藏起来（什么都不画）
     return;
   }
-  if (p < 0.78){
-    // 阶段三：从光标处被"挤出来"，身体从小变大（仍是正圆）
-    const q = (p - 0.58) / 0.20;
-    body(pet.x, pet.y, Pet.util.lerp(0.15, 1, q));
+  if (p < 0.80){
+    // 阶段三：直接出现在鼠标正下方，跳到鼠标上（快速淡入 + 由下往上落定）
+    const a = Math.min(1, (p - 0.50) / 0.10);
+    const q = (p - 0.50) / 0.30;
+    const e = 1 - (1 - q) * (1 - q); // easeOutQuad
+    body(mouse.x, mouse.y + R * 3 * (1 - e), 1, a);
     return;
   }
-  // 阶段四：完整团子从光标处掉回地面
-  body(pet.x, pet.y, 1);
+  // 阶段四：落在鼠标上后掉回地面
+  body(pet.x, pet.y, 1, 1);
 }
 
 function draw(){
@@ -182,7 +175,7 @@ function draw(){
     const sp = (now - pet.behaviorStart) / pet.behaviorDur;
     if (b0 === '穿屏瞬移') hidden = sp >= 0.28 && sp < 0.72;
     else if (b0 === '钻地探头') hidden = (sp >= 0.20 && sp < 0.48) || (sp >= 0.66 && sp < 0.76);
-    else if (b0 === '钻进鼠标') hidden = sp >= 0.20 && sp < 0.58;
+    else if (b0 === '钻进鼠标') hidden = sp >= 0.30 && sp < 0.80;
   }
   if (!hidden){
     const shadowScale = 1 - Pet.util.clamp((floorY - pet.y) / 300, 0, 1) * 0.5;
@@ -283,7 +276,7 @@ function draw(){
     drawEye(-sx + pet.look.x, eyeY + pet.look.y, eyeR * 0.45, 1, 'neutral', -1);
     drawEye( sx + pet.look.x, eyeY + pet.look.y, eyeR * 0.45, 1, 'neutral',  1);
   } else {
-    const cross = (b === '斗鸡眼挑衅') ? R * 0.16 : 0;
+    const cross = (b === '斗鸡眼挑衅') ? R * 0.10 : 0;
     drawEye(-sx + pet.look.x + cross, eyeY + pet.look.y, eyeR, pet.openL, pet.mood, -1);
     drawEye( sx + pet.look.x - cross, eyeY + pet.look.y, eyeR, pet.openR, pet.mood,  1);
   }

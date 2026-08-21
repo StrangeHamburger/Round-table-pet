@@ -403,16 +403,19 @@ function specialPhysics(dt){
   }
 
   if (b === '钻进鼠标'){
-    if (p < 0.20){ // 直接消失：朝光标方向沉入屏幕底边
-      Pet.state.pet.y = Pet.util.lerp(Pet.env.floorY, Pet.env.H + Pet.env.R * 2, p / 0.20);
-      Pet.state.pet.x = Pet.util.lerp(Pet.state.pet.x, Pet.state.mouse.x, 0.25);
+    if (p < 0.30){ // 朝光标方向沉入底部，淡出消失
+      Pet.state.pet.y = Pet.util.lerp(Pet.env.floorY, Pet.env.H + Pet.env.R * 2, p / 0.30);
+      Pet.state.pet.x = Pet.util.lerp(Pet.state.pet.x, Pet.state.mouse.x, 0.18 * k);
       Pet.state.pet.vy = 0; Pet.state.pet.vx = 0;
-    } else if (p < 0.58){ // 藏起来，光标处出现团子色小球（在 draw 里画）
+    } else if (p < 0.50){ // 藏起来（屏幕外）
       Pet.state.pet.y = Pet.env.H + Pet.env.R * 2;
-    } else if (p < 0.78){ // 从光标处被"挤出来"：定位到光标，身体从小变大（draw 里控制大小）
-      Pet.state.pet.x = Pet.state.mouse.x; Pet.state.pet.y = Pet.state.mouse.y;
-      Pet.state.pet.vx = 0; Pet.state.pet.vy = 0;
-    } else { // 完整团子从光标处掉回地面
+    } else if (p < 0.80){ // 直接来到鼠标正下方，再跳到鼠标上（由下往上落定）
+      Pet.state.pet.x = Pet.state.mouse.x;
+      const q = (p - 0.50) / 0.30;
+      const e = 1 - (1 - q) * (1 - q); // easeOutQuad
+      Pet.state.pet.y = Pet.state.mouse.y + Pet.env.R * 3 * (1 - e);
+      Pet.state.pet.vy = 0; Pet.state.pet.vx = 0;
+    } else { // 落在鼠标上后掉回地面
       Pet.state.pet.vy += 0.5 * k;
       Pet.state.pet.y += Pet.state.pet.vy * k;
       if (Pet.state.pet.y >= Pet.env.floorY){ Pet.state.pet.y = Pet.env.floorY; Pet.state.pet.vy = -Math.abs(Pet.state.pet.vy) * 0.4; }
