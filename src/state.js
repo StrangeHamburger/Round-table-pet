@@ -38,3 +38,5 @@ Pet.state = {
   eyeColor:(Pet.config.PALETTES[0] && Pet.config.PALETTES[0].eye) || '#6B4E33',
   settings:{},
 };
+Pet.env.cv = (typeof document !== 'undefined') ? document.getElementById('c') : null;
+Pet.env.ctx = Pet.env.cv ? Pet.env.cv.getContext('2d') : null;
