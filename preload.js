@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   onKey: (cb) => ipcRenderer.on('keyboard', (e, s) => cb(s)),
   setIgnore: (ignore) => ipcRenderer.send('set-ignore', ignore),
   quit: () => ipcRenderer.send('quit'),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (obj) => ipcRenderer.send('save-settings', obj),
 });

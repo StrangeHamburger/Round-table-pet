@@ -1,6 +1,7 @@
 const { app, BrowserWindow, screen, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 // 单实例锁：桌宠已在运行时，再双击图标只聚焦已有实例，不重复启动
 const gotLock = app.requestSingleInstanceLock();
@@ -23,6 +24,29 @@ let musicPending = [];
 let keyChild = null;
 let keyBuf = '';
 let keyPending = [];
+
+// ---------- 设置持久化 ----------
+let settingsCache = {};
+function getSettingsPath() { return path.join(app.getPath('userData'), 'settings.json'); }
+function loadSettings() {
+  try { settingsCache = JSON.parse(fs.readFileSync(getSettingsPath(), 'utf8')); }
+  catch (e) { settingsCache = {}; }
+  return settingsCache;
+}
+let saveSettingsTimer = null;
+function saveSettings(obj) {
+  settingsCache = Object.assign({}, settingsCache, obj || {});
+  if (saveSettingsTimer) clearTimeout(saveSettingsTimer);
+  saveSettingsTimer = setTimeout(() => {
+    try { fs.writeFileSync(getSettingsPath(), JSON.stringify(settingsCache), 'utf8'); }
+    catch (e) {}
+  }, 300);
+}
+ipcMain.handle('get-settings', () => loadSettings());
+ipcMain.on('save-settings', (e, obj) => saveSettings(obj));
+app.on('before-quit', () => {
+  if (win && !win.isDestroyed()) win.webContents.send('save-position');
+});
 
 function createWindow() {
   const wa = screen.getPrimaryDisplay().workArea;
