@@ -152,7 +152,7 @@ function drawDrillMouse(p){
   if (p < 0.78){
     // 阶段三：从光标处被"挤出来"，身体从小变大（仍是正圆）
     const q = (p - 0.58) / 0.20;
-    body(pet.x, pet.y, lerp(0.15, 1, q));
+    body(pet.x, pet.y, Pet.util.lerp(0.15, 1, q));
     return;
   }
   // 阶段四：完整团子从光标处掉回地面
@@ -184,7 +184,7 @@ function draw(){
     else if (b0 === '钻进鼠标') hidden = sp >= 0.20 && sp < 0.58;
   }
   if (!hidden){
-    const shadowScale = 1 - clamp((floorY - pet.y) / 300, 0, 1) * 0.5;
+    const shadowScale = 1 - Pet.util.clamp((floorY - pet.y) / 300, 0, 1) * 0.5;
     Pet.env.ctx.fillStyle = 'rgba(0,0,0,0.20)';
     Pet.env.ctx.beginPath();
     Pet.env.ctx.ellipse(pet.x, floorY + R * 0.85, R * 0.8 * shadowScale, R * 0.16 * shadowScale, 0, 0, Math.PI * 2);
@@ -193,7 +193,7 @@ function draw(){
 
   // 钻进鼠标：特殊绘制（消失 → 光标变团子色 → 挤出来 → 落地）
   if (b0 === '钻进鼠标' && now < pet.behaviorUntil){
-    drawDrillMouse(clamp((now - pet.behaviorStart) / pet.behaviorDur, 0, 1));
+    drawDrillMouse(Pet.util.clamp((now - pet.behaviorStart) / pet.behaviorDur, 0, 1));
     return;
   }
 
@@ -204,12 +204,12 @@ function draw(){
   const active = now < pet.behaviorUntil;
   let moffX = 0, moffY = 0;
   if (active){
-    const p = clamp((now - pet.behaviorStart) / pet.behaviorDur, 0, 1);
+    const p = Pet.util.clamp((now - pet.behaviorStart) / pet.behaviorDur, 0, 1);
     if (b === '哼歌摇摆'){
       moffX = Math.sin(now * 0.012) * R * 0.07;
       moffY = Math.sin(now * 0.024) * R * 0.02;
     } else if (b === '打瞌睡'){
-      moffY = Math.sin(clamp(p * 1.4, 0, 1) * Math.PI) * R * 0.13; // 点头下沉再抬头
+      moffY = Math.sin(Pet.util.clamp(p * 1.4, 0, 1) * Math.PI) * R * 0.13; // 点头下沉再抬头
     } else if (b === '卖萌'){
       moffY = -Math.sin(p * Math.PI) * R * 0.07; // 小跳
     } else if (b === '被吓一跳'){
@@ -251,7 +251,7 @@ function draw(){
   }
   // 随音乐舞动：音乐播放且没有互动动作时，用当前舞步平移（仍只是整体平移，不变形）
   if (music.playing && !active){
-    const d = danceOffset();
+    const d = Pet.behaviors.danceOffset();
     moffX = d.x;
     moffY = d.y;
   }
@@ -273,7 +273,7 @@ function draw(){
   const sx = R * 0.34, eyeY = -R * 0.05, eyeR = R * 0.22;
 
   if (active && b === '打滚'){
-    const p = clamp((now - pet.behaviorStart) / pet.behaviorDur, 0, 1);
+    const p = Pet.util.clamp((now - pet.behaviorStart) / pet.behaviorDur, 0, 1);
     const roll = p * Math.PI * 2;
     const c = Math.cos(roll), s = Math.sin(roll);
     drawEye(-sx * c - eyeY * s, -sx * s + eyeY * c, eyeR, 1, 'neutral', -1);
