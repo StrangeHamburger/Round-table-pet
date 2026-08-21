@@ -60,8 +60,21 @@ function flushSettings() {
 }
 app.on('will-quit', () => { flushSettings(); });
 
+function getUnionWorkArea() {
+  const displays = screen.getAllDisplays();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  displays.forEach(d => {
+    const a = d.workArea;
+    if (a.x < minX) minX = a.x;
+    if (a.y < minY) minY = a.y;
+    if (a.x + a.width > maxX) maxX = a.x + a.width;
+    if (a.y + a.height > maxY) maxY = a.y + a.height;
+  });
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 function createWindow() {
-  const wa = screen.getPrimaryDisplay().workArea;
+  const wa = getUnionWorkArea();
 
   win = new BrowserWindow({
     x: wa.x,
@@ -217,7 +230,7 @@ function stopKeyBridge() {
 }
 
 ipcMain.handle('get-info', () => {
-  const wa = screen.getPrimaryDisplay().workArea;
+  const wa = getUnionWorkArea();
   return { x: wa.x, y: wa.y, width: wa.width, height: wa.height };
 });
 
