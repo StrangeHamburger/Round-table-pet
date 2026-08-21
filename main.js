@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -18,6 +18,7 @@ if (!gotLock) {
 }
 
 let win = null;
+let tray = null;
 let musicChild = null;
 let musicBuf = '';
 let musicPending = [];
@@ -43,7 +44,12 @@ function saveSettings(obj) {
   }, 300);
 }
 ipcMain.handle('get-settings', () => loadSettings());
-ipcMain.on('save-settings', (e, obj) => saveSettings(obj));
+ipcMain.on('save-settings', (e, obj) => {
+  saveSettings(obj);
+  if (obj && typeof obj.autoStart === 'boolean' && app.isPackaged) {
+    app.setLoginItemSettings({ openAtLogin: !!obj.autoStart, path: process.execPath });
+  }
+});
 app.on('before-quit', () => {
   if (win && !win.isDestroyed()) win.webContents.send('save-position');
 });
@@ -223,7 +229,22 @@ ipcMain.on('quit', () => app.quit());
 
 app.whenReady().then(() => {
   if (!gotLock) return; // 未获得锁的实例在 app.quit() 后不再初始化
+  try {
+    const s = loadSettings();
+    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: !!s.autoStart, path: process.execPath });
+  } catch (e) {}
   createWindow();
+  if (!tray && fs.existsSync(path.join(__dirname, 'icon.png'))) {
+    tray = new Tray(path.join(__dirname, 'icon.png'));
+    const trayMenu = Menu.buildFromTemplate([
+      { label: '显示窗口', click: () => { if (win && !win.isDestroyed()) { win.show(); win.setIgnoreMouseEvents(true, { forward: true }); } } },
+      { label: '隐藏窗口', click: () => { if (win && !win.isDestroyed()) { win.setIgnoreMouseEvents(false); win.hide(); } } },
+      { type: 'separator' },
+      { label: '退出', click: () => app.quit() },
+    ]);
+    tray.setToolTip('团团桌面宠物');
+    tray.setContextMenu(trayMenu);
+  }
   startMusicBridge();
   startKeyBridge();
   app.on('activate', () => {
