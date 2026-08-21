@@ -132,7 +132,7 @@ function updateMood(){
 function updateDance(){
   if (!Pet.state.music.playing){ Pet.state.dance.style = 0; return; }
   if (Pet.state.now >= Pet.state.dance.next){
-    Pet.state.dance.next = Pet.state.now + Pet.util.RAND(2000, 4000);
+    Pet.state.dance.next = Pet.state.now + Pet.util.RAND(2000, 4000) / (Pet.state.music.rate || 1);
     Pet.state.dance.style = (Math.random() * 6) | 0;
   }
 }

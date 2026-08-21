@@ -42,7 +42,8 @@ function drawBeatRings(){
   const now = Pet.state.now;
   const R = Pet.env.R;
   // 随节拍从身体向外扩散的律动圆环（身体本身不变形，只是周围加光晕）
-  const beat = (now % 900) / 900; // 约 900ms 一拍
+  const period = 900 / (Pet.state.music.rate || 1);
+  const beat = (Pet.state.now % period) / period;
   for (let i = 0; i < 2; i++){
     const ph = (beat + i / 2) % 1;
     const rr = R * (1 + ph * 1.1);

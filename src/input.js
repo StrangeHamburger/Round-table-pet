@@ -144,6 +144,16 @@ function init(){
   desktopAPI.onMusic(s => {
     if (!s) return;
     Pet.state.music.playing = !!s.playing;
+    if (s.trackId && s.trackId !== Pet.state.lastTrackId) {
+      Pet.state.lastTrackId = s.trackId;
+      Pet.state.dance.style = 0;
+      Pet.state.dance.next = 0;
+      if (Pet.state.music.playing) {
+        Pet.state.pet.vy = -5;
+        Pet.behaviors.setBehavior('换新歌啦', 900);
+      }
+    }
+    if (typeof s.playbackRate === 'number') Pet.state.music.rate = s.playbackRate;
   });
 
   // 打字检测：每按一个键攒一个小跳（身体原地轻跳，不乱跑）
