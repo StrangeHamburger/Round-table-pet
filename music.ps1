@@ -21,9 +21,9 @@ $null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,
 $script:manager = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
 
 function Get-State {
-  if (-not $script:manager) { return @{ playing = $false; hasSession = $false } }
-  try { $sessions = @($script:manager.GetSessions()) } catch { return @{ playing = $false; hasSession = $false } }
-  if ($sessions.Count -eq 0) { return @{ playing = $false; hasSession = $false } }
+  if (-not $script:manager) { return @{ playing = $false; hasSession = $false; trackId = ''; playbackRate = 1.0 } }
+  try { $sessions = @($script:manager.GetSessions()) } catch { return @{ playing = $false; hasSession = $false; trackId = ''; playbackRate = 1.0 } }
+  if ($sessions.Count -eq 0) { return @{ playing = $false; hasSession = $false; trackId = ''; playbackRate = 1.0 } }
 
   # pick the Playing session if any, else the first one
   $s = $null
@@ -39,14 +39,16 @@ function Get-State {
     $props = Await ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
     $pb = $s.GetPlaybackInfo()
     return @{
-      playing    = ([string]$pb.PlaybackStatus -eq 'Playing')
-      hasSession = $true
-      title      = [string]$props.Title
-      artist     = [string]$props.Artist
-      status     = [string]$pb.PlaybackStatus
+      playing      = ([string]$pb.PlaybackStatus -eq 'Playing')
+      hasSession   = $true
+      title        = [string]$props.Title
+      artist       = [string]$props.Artist
+      status       = [string]$pb.PlaybackStatus
+      trackId      = ([string]$props.Title + '|' + [string]$props.Artist)
+      playbackRate = if ($pb.PlaybackRate) { [double]$pb.PlaybackRate } else { 1.0 }
     }
   } catch {
-    return @{ playing = $false; hasSession = $true }
+    return @{ playing = $false; hasSession = $true; trackId = ''; playbackRate = 1.0 }
   }
 }
 
