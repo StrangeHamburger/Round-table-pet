@@ -20,6 +20,9 @@ window.Pet = window.Pet || {};
   }
   function boot() {
     Pet.input.init();
+    desktopAPI.onSavePosition(() => {
+      desktopAPI.saveSettings({ lastX: Pet.state.pet.x, lastY: Pet.state.pet.y });
+    });
     requestAnimationFrame(loop);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

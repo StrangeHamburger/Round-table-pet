@@ -3,6 +3,20 @@ window.Pet = window.Pet || {};
 // 菜单 DOM（无独立命名空间，保持本地引用）
 const menu = document.getElementById('menu');
 
+function persist() {
+  desktopAPI.saveSettings({
+    bodyColor: Pet.state.bodyColor,
+    eyeColor: Pet.state.eyeColor,
+    size: Pet.env.R,
+    homeSet: Pet.state.pet.homeSet,
+    homeX: Pet.state.pet.homeX,
+    lastX: Pet.state.pet.x,
+    lastY: Pet.state.pet.y,
+    autoStart: !!(Pet.state.settings && Pet.state.settings.autoStart),
+    sound: !(Pet.state.settings && Pet.state.settings.sound === false),
+  });
+}
+
 function resize(){
   Pet.env.DPR = window.devicePixelRatio || 1;
   Pet.env.W = window.innerWidth; Pet.env.H = window.innerHeight;
@@ -92,10 +106,12 @@ function buildSwatches(){
     const b = document.createElement('button');
     b.className = 'sw' + (i === 0 ? ' active' : '');
     b.style.background = p.body;
+    b.dataset.body = p.body;
     b.addEventListener('click', () => {
       Pet.state.bodyColor = p.body; Pet.state.eyeColor = p.eye;
       box.querySelectorAll('.sw').forEach(x => x.classList.remove('active'));
       b.classList.add('active');
+      persist();
     });
     box.appendChild(b);
   });
@@ -235,6 +251,7 @@ function init(){
           Pet.state.lastInteract = performance.now();
         }
         setIgnore(!mouseOver(Pet.state.mouse.x, Pet.state.mouse.y));
+        persist();
         return;
       }
       // 没有拖动（原地按下又松开）→ 当作点击 / 长按，继续往下判断
@@ -275,6 +292,7 @@ function init(){
     Pet.state.pet.homeX = Pet.state.pet.x; Pet.state.pet.homeSet = true;
     Pet.state.pet.vy = -4; Pet.state.pet.mood = 'happy'; Pet.state.pet.moodUntil = performance.now() + 900;
     Pet.behaviors.setBehavior('记下家了');
+    persist();
     closeMenu();
   });
   document.getElementById('mGoHome').addEventListener('click', () => {
@@ -287,12 +305,27 @@ function init(){
   document.getElementById('mSize').addEventListener('input', () => {
     document.getElementById('mSizeVal').textContent = document.getElementById('mSize').value;
     applySize();
+    persist();
   });
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
 
   buildSwatches();
   resize();
+
+  desktopAPI.getSettings().then(s => {
+    if (!s) return;
+    if (s.bodyColor) Pet.state.bodyColor = s.bodyColor;
+    if (s.eyeColor) Pet.state.eyeColor = s.eyeColor;
+    if (s.size) { const m = document.getElementById('mSize'); if (m) m.value = s.size; applySize(); }
+    if (s.homeSet) { Pet.state.pet.homeX = s.homeX; Pet.state.pet.homeSet = true; }
+    if (typeof s.lastX === 'number') { Pet.state.pet.x = s.lastX; Pet.state.pet.y = s.lastY; }
+    Pet.state.settings = Object.assign({}, Pet.state.settings, s);
+    const sw = document.getElementById('mSwatches');
+    if (sw) sw.querySelectorAll('.sw').forEach(b => {
+      b.classList.toggle('active', !!b.dataset.body && !!Pet.state.bodyColor && b.dataset.body.toLowerCase() === Pet.state.bodyColor.toLowerCase());
+    });
+  });
 }
 
 Pet.input = { init };

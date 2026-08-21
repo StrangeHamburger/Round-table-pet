@@ -48,6 +48,12 @@ app.on('before-quit', () => {
   if (win && !win.isDestroyed()) win.webContents.send('save-position');
 });
 
+function flushSettings() {
+  if (saveSettingsTimer) { clearTimeout(saveSettingsTimer); saveSettingsTimer = null; }
+  try { fs.writeFileSync(getSettingsPath(), JSON.stringify(settingsCache), 'utf8'); } catch (e) {}
+}
+app.on('will-quit', () => { flushSettings(); });
+
 function createWindow() {
   const wa = screen.getPrimaryDisplay().workArea;
 
