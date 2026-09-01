@@ -353,7 +353,13 @@ function init(){
     if (sw) sw.querySelectorAll('.sw').forEach(b => {
       b.classList.toggle('active', !!b.dataset.body && !!Pet.state.bodyColor && b.dataset.body.toLowerCase() === Pet.state.bodyColor.toLowerCase());
     });
+  }).then(() => {
+    // 位置与配色就绪后，播放开场动画（弹性弹出）
+    Pet.state.introStart = performance.now();
   });
+
+  // 兜底：设置迟迟未返回时也照常开场
+  setTimeout(() => { if (!Pet.state.introStart) Pet.state.introStart = performance.now(); }, 800);
 }
 
 Pet.input = { init };

@@ -37,6 +37,9 @@ Pet.state = {
   bodyColor:(Pet.config.PALETTES[0] && Pet.config.PALETTES[0].body) || '#F6E7C6',
   eyeColor:(Pet.config.PALETTES[0] && Pet.config.PALETTES[0].eye) || '#6B4E33',
   settings:{},
+  introStart:0, introDone:false, introDur:900,
+  quitting:false, quitStart:0, quitDur:700,
+  drawScale:1, drawAlpha:1,
 };
 Pet.env.cv = (typeof document !== 'undefined') ? document.getElementById('c') : null;
 Pet.env.ctx = Pet.env.cv ? Pet.env.cv.getContext('2d') : null;

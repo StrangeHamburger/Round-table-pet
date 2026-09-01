@@ -151,12 +151,14 @@ function draw(){
   const now = Pet.state.now;
   const mouse = Pet.state.mouse;
   const music = Pet.state.music;
+  const intro = Pet.state.drawScale != null ? Pet.state.drawScale : 1;
+  const fade = Pet.state.drawAlpha != null ? Pet.state.drawAlpha : 1;
   Pet.env.ctx.clearRect(0, 0, Pet.env.W, Pet.env.H);
 
   // 家的标记
-  if (pet.homeSet){
-    Pet.env.ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    Pet.env.ctx.beginPath(); Pet.env.ctx.arc(pet.homeX, floorY + R * 0.7, R * 0.25, 0, Math.PI * 2); Pet.env.ctx.fill();
+  if (pet.homeSet && fade > 0.01){
+    Pet.env.ctx.fillStyle = 'rgba(255,255,255,' + (0.10 * fade).toFixed(3) + ')';
+    Pet.env.ctx.beginPath(); Pet.env.ctx.arc(pet.homeX, floorY + R * 0.7, R * 0.25 * intro, 0, Math.PI * 2); Pet.env.ctx.fill();
   }
 
   // 地面阴影（特殊行为"消失"阶段不画阴影，避免露馅）
@@ -168,9 +170,9 @@ function draw(){
     else if (b0 === '钻地探头') hidden = (sp >= 0.20 && sp < 0.48) || (sp >= 0.66 && sp < 0.76);
     else if (b0 === '钻进鼠标') hidden = sp < 0.60;
   }
-  if (!hidden){
-    const shadowScale = 1 - Pet.util.clamp((floorY - pet.y) / 300, 0, 1) * 0.5;
-    Pet.env.ctx.fillStyle = 'rgba(0,0,0,0.20)';
+  if (!hidden && fade > 0.01){
+    const shadowScale = (1 - Pet.util.clamp((floorY - pet.y) / 300, 0, 1) * 0.5) * intro;
+    Pet.env.ctx.fillStyle = 'rgba(0,0,0,' + (0.20 * fade).toFixed(3) + ')';
     Pet.env.ctx.beginPath();
     Pet.env.ctx.ellipse(pet.x, floorY + R * 0.85, R * 0.8 * shadowScale, R * 0.16 * shadowScale, 0, 0, Math.PI * 2);
     Pet.env.ctx.fill();
@@ -243,6 +245,8 @@ function draw(){
 
   Pet.env.ctx.save();
   Pet.env.ctx.translate(pet.x + shakeX + moffX, pet.y + moffY);
+  if (intro !== 1) Pet.env.ctx.scale(intro, intro);
+  Pet.env.ctx.globalAlpha = fade;
 
   // 身体：恒定正圆，永不形变
   Pet.env.ctx.fillStyle = Pet.state.bodyColor;
@@ -320,7 +324,7 @@ function draw(){
   }
 
   // 随音乐舞动 → 律动圆环 + 头顶飘音符
-  if (music.playing){
+  if (music.playing && !Pet.state.quitting){
     drawBeatRings();
     drawNotes(5);
   }

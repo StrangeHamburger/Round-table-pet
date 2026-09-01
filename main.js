@@ -230,7 +230,24 @@ ipcMain.on('set-ignore', (e, ignore) => {
   if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!!ignore, { forward: true });
 });
 
-ipcMain.on('quit', () => app.quit());
+// 退出改为「先播放退出动画，再真正退出」：渲染进程动画结束后回发 quit-now
+let quitting = false;
+function requestQuit() {
+  if (quitting) return;
+  quitting = true;
+  if (win && !win.isDestroyed()) {
+    try { win.webContents.send('quit-request'); } catch (e) {}
+    // 兜底：渲染进程无响应时，2.5 秒后强制退出
+    setTimeout(() => {
+      if (quitting) { quitting = false; app.quit(); }
+    }, 2500);
+  } else {
+    quitting = false;
+    app.quit();
+  }
+}
+ipcMain.on('quit', () => requestQuit());
+ipcMain.on('quit-now', () => { quitting = false; app.quit(); });
 
 app.whenReady().then(() => {
   if (!gotLock) return; // 未获得锁的实例在 app.quit() 后不再初始化
@@ -245,7 +262,7 @@ app.whenReady().then(() => {
       { label: '显示窗口', click: () => { if (win && !win.isDestroyed()) { win.show(); win.setIgnoreMouseEvents(true, { forward: true }); } } },
       { label: '隐藏窗口', click: () => { if (win && !win.isDestroyed()) { win.setIgnoreMouseEvents(false); win.hide(); } } },
       { type: 'separator' },
-      { label: '退出', click: () => app.quit() },
+      { label: '退出', click: () => requestQuit() },
     ]);
     tray.setToolTip('团团桌面宠物');
     tray.setContextMenu(trayMenu);
